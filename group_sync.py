@@ -26,6 +26,7 @@ def create_groups_from_csv(signal_dbus, group_csv_file_path):
         # Create the group if it doesn't exist and update the group ID in the CSV
         if not group_id:
             group_id = signal_dbus.create_group(group_name, [])
+            print(group_id)
             row['Group ID'] = str(group_id)
             signal_dbus.set_group_property(group_id, 'Description', group_description)
             signal_dbus.set_group_property(group_id, 'PermissionAddMembers', permission_add_members)
@@ -73,12 +74,12 @@ def sync_group_members_from_csv(signal_dbus, member_csv_file_path):
 
 def main():
     registered_number = REGISTERED_NUMBER  # Replace with the registered Signal number
-    group_csv_file_path = 'groups.csv'  # Replace with the path to your group CSV file
-    member_csv_file_path = 'members.csv'  # Replace with the path to your member CSV file
+    group_csv_file_path = 'env/groups.csv'  # Replace with the path to your group CSV file
+    member_csv_file_path = 'env/members.csv'  # Replace with the path to your member CSV file
 
     signal_dbus = SignalDBus(registered_number)
     create_groups_from_csv(signal_dbus, group_csv_file_path)
-    sync_group_members_from_csv(signal_dbus, member_csv_file_path)
+    #sync_group_members_from_csv(signal_dbus, member_csv_file_path)
 
 if __name__ == '__main__':
     main()
