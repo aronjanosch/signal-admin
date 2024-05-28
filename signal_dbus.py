@@ -32,25 +32,34 @@ class SignalDBus:
         registered_members = []
         unregistered_members = []
 
-        results = self.is_registered_batch(members)
-        for member, is_registered in zip(members, results):
-            if is_registered:
-                registered_members.append(member)
-            else:
-                unregistered_members.append(member)
+        if members:
+            results = self.is_registered_batch(members)
+            for member, is_registered in zip(members, results):
+                if is_registered:
+                    registered_members.append(member)
+                else:
+                    unregistered_members.append(member)
 
-        if registered_members:
+            if registered_members:
+                try:
+                    group_id = self.signal_object.createGroup(group_name, registered_members, "")
+                    print(f"Created group '{group_name}' with {len(registered_members)} members")
+                    return group_id
+                except Exception as e:
+                    print(f"Error creating group '{group_name}': {str(e)}")
+
+            if unregistered_members:
+                print(f"The following phone numbers are not registered with Signal: {', '.join(unregistered_members)}")
+                with open('unregistered_numbers.txt', 'w') as file:
+                    file.write('\n'.join(unregistered_members))
+                print("Unregistered numbers saved to 'unregistered_numbers.txt'")
+        else:
             try:
-                self.signal_object.createGroup(group_name, registered_members, "")
-                print(f"Created group '{group_name}' with {len(registered_members)} members")
+                group_id = self.signal_object.createGroup(group_name, [], "")
+                print(f"Created group '{group_name}'")
+                return group_id
             except Exception as e:
                 print(f"Error creating group '{group_name}': {str(e)}")
-
-        if unregistered_members:
-            print(f"The following phone numbers are not registered with Signal: {', '.join(unregistered_members)}")
-            with open('unregistered_numbers.txt', 'w') as file:
-                file.write('\n'.join(unregistered_members))
-            print("Unregistered numbers saved to 'unregistered_numbers.txt'")
 
     def update_group(self, group_id, members, remove_members=False):
         object_path = self.get_group_object_path(group_id)
@@ -122,7 +131,8 @@ class SignalDBus:
     def get_group_property(self, group_id, property_name):
         object_path = self.get_group_object_path(group_id)
         try:
-            return self.bus.get('org.asamk.Signal', object_path).Get('org.asamk.Signal.Group', property_name)
+            group_proxy = self.bus.get('org.asamk.Signal', object_path)
+            return getattr(group_proxy, property_name)
         except Exception as e:
             print(f"Error getting group property '{property_name}': {str(e)}")
             return None
@@ -130,7 +140,8 @@ class SignalDBus:
     def set_group_property(self, group_id, property_name, property_value):
         object_path = self.get_group_object_path(group_id)
         try:
-            self.bus.get('org.asamk.Signal', object_path).Set('org.asamk.Signal.Group', property_name, property_value)
+            group_proxy = self.bus.get('org.asamk.Signal', object_path)
+            setattr(group_proxy, property_name, property_value)
         except Exception as e:
             print(f"Error setting group property '{property_name}': {str(e)}")
 

@@ -9,7 +9,13 @@ REGISTERED_NUMBER = os.getenv("REGISTERED_NUMBER")
 
 
 def create_groups_from_csv(signal_dbus, group_csv_file_path):
-    # Read the group CSV file and create groups
+    """
+    Create Signal groups from a CSV file.
+
+    Args:
+        signal_dbus (SignalDBus): An instance of the SignalDBus class.
+        group_csv_file_path (str): Path to the CSV file containing group information.
+    """
     with open(group_csv_file_path, 'r', encoding='UTF-8') as group_csv_file:
         reader = csv.DictReader(group_csv_file)
         rows = list(reader)
@@ -23,9 +29,10 @@ def create_groups_from_csv(signal_dbus, group_csv_file_path):
         permission_edit_details = row['PermissionEditDetails']
         permission_send_messages = row['PermissionSendMessages']
         
-        # Create the group if it doesn't exist and update the group ID in the CSV
         if not group_id:
+            # Create the group if it doesn't exist and update the group ID in the CSV
             group_id = signal_dbus.create_group(group_name, [])
+            print(group_id)
             row['Group ID'] = str(group_id)
             signal_dbus.set_group_property(group_id, 'Description', group_description)
             signal_dbus.set_group_property(group_id, 'PermissionAddMembers', permission_add_members)
@@ -44,8 +51,15 @@ def create_groups_from_csv(signal_dbus, group_csv_file_path):
         writer.writeheader()
         writer.writerows(updated_rows)
 
+
 def sync_group_members_from_csv(signal_dbus, member_csv_file_path):
-    # Read the member CSV file and process the data
+    """
+    Synchronize Signal group members from a CSV file.
+
+    Args:
+        signal_dbus (SignalDBus): An instance of the SignalDBus class.
+        member_csv_file_path (str): Path to the CSV file containing member information.
+    """
     with open(member_csv_file_path, 'r', encoding='UTF-8') as member_csv_file:
         reader = csv.DictReader(member_csv_file)
         group_members = {}
@@ -56,7 +70,6 @@ def sync_group_members_from_csv(signal_dbus, member_csv_file_path):
                 group_members[group_id] = []
             group_members[group_id].append(phone_number)
 
-    # Iterate over each group and sync members
     for group_id, members in group_members.items():
         group_name = signal_dbus.get_group_name(group_id)
         if group_name:
@@ -71,14 +84,19 @@ def sync_group_members_from_csv(signal_dbus, member_csv_file_path):
         else:
             print(f"Group not found: {group_id}")
 
+
 def main():
-    registered_number = REGISTERED_NUMBER  # Replace with the registered Signal number
-    group_csv_file_path = 'groups.csv'  # Replace with the path to your group CSV file
-    member_csv_file_path = 'members.csv'  # Replace with the path to your member CSV file
+    """
+    The main function to run the group synchronization.
+    """
+    registered_number = REGISTERED_NUMBER
+    group_csv_file_path = 'env/groups.csv'
+    member_csv_file_path = 'env/members.csv'
 
     signal_dbus = SignalDBus(registered_number)
     create_groups_from_csv(signal_dbus, group_csv_file_path)
-    sync_group_members_from_csv(signal_dbus, member_csv_file_path)
+    # sync_group_members_from_csv(signal_dbus, member_csv_file_path)
+
 
 if __name__ == '__main__':
     main()
