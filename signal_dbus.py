@@ -48,9 +48,15 @@ class SignalDBus:
 
     def is_registered(self, number):
         try:
-            return self.signal_object.isRegistered(number)
+            result = self.signal_object.isRegistered(number)
+            if not result:
+                with open('env/unregistered_numbers.txt', 'a') as file:
+                    file.write(number + '\n')
+            return result
         except Exception as e:
             if 'InvalidNumber' in str(e):
+                with open('env/unregistered_numbers.txt', 'a') as file:
+                    file.write(number + '\n')
                 return False
             raise e
 
@@ -59,12 +65,18 @@ class SignalDBus:
         for number in numbers:
             try:
                 result = self.signal_object.isRegistered(number)
+                if not result:
+                    with open('env/unregistered_numbers.txt', 'a') as file:
+                        file.write(number + '\n')
                 results.append(result)
             except Exception as e:
                 if 'InvalidNumber' in str(e):
+                    with open('env/unregistered_numbers.txt', 'a') as file:
+                        file.write(number + '\n')
                     results.append(False)
                 else:
-                    raise e
+                    results.append(True)
+                    #raise e
         return results
 
     def create_group(self, group_name, members):
@@ -89,9 +101,6 @@ class SignalDBus:
 
             if unregistered_members:
                 print(f"The following phone numbers are not registered with Signal: {', '.join(unregistered_members)}")
-                with open('env/unregistered_numbers.txt', 'w') as file:
-                    file.write('\n'.join(unregistered_members))
-                print("Unregistered numbers saved to 'unregistered_numbers.txt'")
         else:
             try:
                 group_id = self.signal_object.createGroup(group_name, [], "")
@@ -126,12 +135,6 @@ class SignalDBus:
                     print(f"Added {len(registered_members)} members to the group")
                 except Exception as e:
                     print(f"Error adding members to the group: {str(e)}")
-
-        if unregistered_members:
-            print(f"The following phone numbers are not registered with Signal: {', '.join(unregistered_members)}")
-            with open('unregistered_numbers.txt', 'a') as file:
-                file.write('\n'.join(unregistered_members) + '\n')
-            print("Unregistered numbers appended to 'unregistered_numbers.txt'")
 
     def list_groups(self):
         try:

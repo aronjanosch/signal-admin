@@ -44,11 +44,13 @@ def create_groups_from_csv(signal_dbus, group_csv_file_path, groups_created_file
             print(f"Group '{group_name}' already exists. If this is an error, modify the groups_created.csv file.")
 
     # Append the created groups to the groups_created.csv file
+    fieldnames = ['Group ID', 'Group Name']
+    file_exists = os.path.isfile(groups_created_file_path)
     with open(groups_created_file_path, 'a', encoding='UTF-8', newline='') as groups_created_file:
-        fieldnames = ['Group ID', 'Group Name']
         writer = csv.DictWriter(groups_created_file, fieldnames=fieldnames)
+        if not file_exists:
+            writer.writeheader()
         writer.writerows(created_rows)
-
 
 def get_existing_group_names(groups_created_file_path):
     """
@@ -78,13 +80,13 @@ def get_group_id_by_name(groups_created_file_path, group_name):
         group_name (str): The group name.
 
     Returns:
-        list: The group ID as a list of integers.
+        str: The group ID as a string.
     """
     with open(groups_created_file_path, 'r', encoding='UTF-8') as groups_created_file:
         reader = csv.DictReader(groups_created_file)
         for row in reader:
             if row['Group Name'] == group_name:
-                return eval(row['Group ID'])
+                return row['Group ID']
     return None
 
 
@@ -97,29 +99,55 @@ def sync_group_members_from_csv(signal_dbus, member_csv_file_path, groups_create
         member_csv_file_path (str): Path to the CSV file containing member information.
         groups_created_file_path (str): Path to the CSV file containing created group information.
     """
+    group_id_to_name = {}
+    with open(groups_created_file_path, 'r', encoding='UTF-8') as groups_created_file:
+        reader = csv.DictReader(groups_created_file)
+        for row in reader:
+            group_id_to_name[row['Group ID']] = row['Group Name']
+
     with open(member_csv_file_path, 'r', encoding='UTF-8') as member_csv_file:
         reader = csv.DictReader(member_csv_file)
         group_members = {}
+        group_admins = {}
         for row in reader:
             phone_number = row['Phone Number']
-            group_name = row['Group Name']
-            group_id = get_group_id_by_name(groups_created_file_path, group_name)
-            if group_id:
-                if group_id not in group_members:
-                    group_members[group_id] = []
-                group_members[group_id].append(phone_number)
+            group_names = row['Group Name'].split(';')
+            admin_groups = row['Group Admin'].split(';') if row['Group Admin'] else []
+            
+            if not signal_dbus.is_registered(phone_number):
+                print(f"Skipping unregistered member: {phone_number}")
+                continue
+            
+            for group_name in group_names:
+                group_id = get_group_id_by_name(groups_created_file_path, group_name.strip())
+                if group_id:
+                    if group_id not in group_members:
+                        group_members[group_id] = []
+                    group_members[group_id].append(phone_number)
+            
+            for admin_group in admin_groups:
+                group_id = get_group_id_by_name(groups_created_file_path, admin_group.strip())
+                if group_id:
+                    if group_id not in group_admins:
+                        group_admins[group_id] = []
+                    group_admins[group_id].append(phone_number)
 
     for group_id, members in group_members.items():
-        group_name = signal_dbus.get_group_name(group_id)
+        group_name = group_id_to_name.get(group_id)
         if group_name:
             print(f"Syncing members for group: {group_name}")
-            existing_members = signal_dbus.get_group_property(group_id, 'Members')
+            existing_members = signal_dbus.get_group_property(eval(group_id), 'Members')
             members_to_add = [member for member in members if member not in existing_members]
             members_to_remove = [member for member in existing_members if member not in members]
             if members_to_add:
-                signal_dbus.add_members(group_id, members_to_add)
+                signal_dbus.add_members(eval(group_id), members_to_add)
             if members_to_remove:
-                signal_dbus.remove_members(group_id, members_to_remove)
+                signal_dbus.remove_members(eval(group_id), members_to_remove)
+            
+            if group_id in group_admins:
+                admins = group_admins[group_id]
+                print(f"Setting {admins} as admins for group: {group_name}")
+                signal_dbus.add_admins(eval(group_id), admins)
         else:
             print(f"Group not found: {group_id}")
 

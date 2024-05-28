@@ -1,2 +1,2 @@
-Name,Phone Number,Group Name, Short Group ID
-John Doe,+123456789,Team Alpha,12345abc
+Name,Phone Number,Group Name,Group Admin
+John Doe,+123456789,Team Alpha;Team Beta;Hub,Hub;Team Alpha

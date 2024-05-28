@@ -197,6 +197,11 @@ def link_to_primary_device(signal_manager):
     except Exception as e:
         print(f"Linking failed: {str(e)}")
 
+def check_number(signal_manager):
+    number = inquirer.text("Enter the phone number to check:")
+    is_registered = signal_manager.is_registered(number)
+    print(f"Phone number {number} is {'registered' if is_registered else 'not registered'}.")
+
 def register_menu(signal_manager):
     while True:
         action = inquirer.list_input("Select a registration method:", choices=['Register as Primary Device', 'Link to Primary Device', 'Back'])
@@ -210,7 +215,7 @@ def register_menu(signal_manager):
 
 def utils_menu(signal_manager):
     while True:
-        action = inquirer.list_input("Select a utility action:", choices=['Get Group ID', 'Get Group Property', 'Set Group Property', 'Back'])
+        action = inquirer.list_input("Select a utility action:", choices=['Get Group ID', 'Get Group Property', 'Set Group Property', 'Check Number', 'Back'])
 
         if action == 'Get Group ID':
             get_group_id(signal_manager)
@@ -218,6 +223,8 @@ def utils_menu(signal_manager):
             get_group_property(signal_manager)
         elif action == 'Set Group Property':
             set_group_property(signal_manager)
+        elif action == 'Check Number':
+            check_number(signal_manager)
         elif action == 'Back':
             break
 
