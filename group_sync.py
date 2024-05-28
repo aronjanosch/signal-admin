@@ -33,6 +33,7 @@ def create_groups_from_csv(signal_dbus, group_csv_file_path):
             # Create the group if it doesn't exist and update the group ID in the CSV
             group_id = signal_dbus.create_group(group_name, [])
             print(group_id)
+            print(group_id)
             row['Group ID'] = str(group_id)
             signal_dbus.set_group_property(group_id, 'Description', group_description)
             signal_dbus.set_group_property(group_id, 'PermissionAddMembers', permission_add_members)

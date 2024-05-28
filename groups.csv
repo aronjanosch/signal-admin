@@ -1,0 +1,3 @@
+Group ID,Group Name,Group Description,PermissionAddMember,PermissionEditDetails,PermissionSendMessage
+,Team Alpha,Group for Team Alpha,ONLY_ADMINS,ONLY_ADMINS,EVERY_MEMBER
+,Team Beta,Group for Team Beta,EVERY_MEMBER,EVERY_MEMBER,EVERY_MEMBER

@@ -15,7 +15,8 @@ class SignalCommands:
                 '-n',
                 group_name
             ]
-            command.extend(['-m'] + members)
+            if members:
+                command.extend(['-m'] + members)
             subprocess.run(command, check=True)
             print(f"Created group '{group_name}' with {len(members)} members")
         except subprocess.CalledProcessError as e:
