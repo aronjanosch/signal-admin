@@ -1,4 +1,6 @@
 python-dotenv
 inquirer
+pycairo
+PyGObject
 pydbus
 qrcode
