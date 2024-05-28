@@ -1,11 +1,50 @@
 import csv
 from pydbus import SystemBus  # type: ignore
+from gi.repository import GLib
 
 class SignalDBus:
     def __init__(self, registered_number):
         self.registered_number = registered_number
         self.bus = SystemBus()
-        self.signal_object = self.bus.get('org.asamk.Signal', object_path=f'/org/asamk/Signal/{registered_number.replace("+", "_")}')
+        self.signal_bus = self.bus.get('org.asamk.Signal')
+        self.signal_base_object = self.bus.get('org.asamk.Signal', object_path='/org/asamk/Signal')
+        self.signal_object = None
+        if registered_number:
+            self.set_registered_number(registered_number)
+
+    def set_registered_number(self, registered_number):
+        self.registered_number = registered_number
+        object_path = f'/org/asamk/Signal/{registered_number.replace("+", "_")}'
+        try:
+            self.signal_object = self.bus.get('org.asamk.Signal', object_path=object_path)
+        except GLib.GError as e:
+            if 'UnknownObject' in str(e):
+                print(f"Signal object not found for registered number: {registered_number}")
+                self.signal_object = None
+            else:
+                raise
+
+    def link(self, new_device_name="cli"):
+        try:
+            device_link_uri = self.signal_base_object.link(new_device_name)
+            return device_link_uri
+        except Exception as e:
+            print(f"Error linking device: {str(e)}")
+            raise
+
+    def register(self, number, voice_verification=False):
+        try:
+            self.signal_base_object.register(number, voice_verification)
+        except Exception as e:
+            print(f"Error registering account: {str(e)}")
+            raise
+
+    def register_with_captcha(self, number, voice_verification=False, captcha=""):
+        try:
+            self.signal_base_object.registerWithCaptcha(number, voice_verification, captcha)
+        except Exception as e:
+            print(f"Error registering account with captcha: {str(e)}")
+            raise
 
     def is_registered(self, number):
         try:
@@ -50,7 +89,7 @@ class SignalDBus:
 
             if unregistered_members:
                 print(f"The following phone numbers are not registered with Signal: {', '.join(unregistered_members)}")
-                with open('unregistered_numbers.txt', 'w') as file:
+                with open('env/unregistered_numbers.txt', 'w') as file:
                     file.write('\n'.join(unregistered_members))
                 print("Unregistered numbers saved to 'unregistered_numbers.txt'")
         else:

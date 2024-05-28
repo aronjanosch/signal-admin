@@ -1,3 +1,4 @@
 python-dotenv
 inquirer
 pydbus
+qrcode
