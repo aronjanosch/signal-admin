@@ -77,7 +77,7 @@ if javaInstalled in ['Oui', 'Yes', 'O', 'Y', 'oui', 'yes', 'o', 'y']:
 		os.system('signal-cli --config /var/lib/signal-cli -u ' + number + ' verify ' + verifCode)
 
 	else:
-		deviceName = input("""\nYou are about to generate a link beginning by tsdevice://...\nCopy it and paste it in a QR Code generator, like https://www.unitag.io.\nBe careful to choose "Text", not "Link" in the generator.\nUse the Signal app on your phone to flash the generated QR code.\nHow do you ant to name your device?: """)
+		deviceName = input("""\nYou are about to generate a link beginning by tsdevice://...\nCopy it and paste it in a QR Code generator, like https://www.qrcode-generator.de/.\nBe careful not to choose "URL" in the generator.\nUse the Signal app on your phone to flash the generated QR code.\nHow do you ant to name your device?: """)
 		os.system('''signal-cli --config /var/lib/signal-cli link -n "''' + deviceName + '''"''')
 
 	os.system("apt-get install libunixsocket-java")
@@ -99,7 +99,7 @@ if javaInstalled in ['Oui', 'Yes', 'O', 'Y', 'oui', 'yes', 'o', 'y']:
 		if numberOK == False:
 			print("\nThis is not a valid number. Please retry.")
 		else:
-			os.system('''signal-cli --dbus-system send -m "Everything works as expected. The signal-cli client installation is finished.\nWell done!" ''' + number)
+			os.system('''signal-cli --config /var/lib/signal-cli --dbus-system send -m "Everything works as expected. The signal-cli client installation is finished.\nWell done!" ''' + number)
 			received = input("\nA message has just been sent to this number.\nHave you received it? (Yes/No): ")
 			if received not in ['Oui', 'Yes', 'O', 'Y', 'oui', 'yes', 'o', 'y']:
 				numberOK = False
