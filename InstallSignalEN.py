@@ -3,12 +3,13 @@
 #
 # Run this file with superuser rights ('sudo') to install the Signal client
 
+input("Did you run this script with super user rights ('sudo'), Press enter to continue")
 input("Welcome to the signal-cli install wizard.\nPress ENTER when you are ready.")
 
 import os
 
 
-javaInstalled = input("\n\nSignal requires Java  and the Java Cryptography extension.\nFor Java, just do 'sudo apt-get install default-jdk'.\nFor the JCE, download it at  http://www.oracle.com/technetwork/java/javase/downloads/jce8-download-2133166.html\nand xopy the files in /usr/lib/jvm/<the Java folder>/lib/security/\nReplace the existing files if needed.\nAre Java and the JCE extension correctly installed? (Yes/No): ")
+javaInstalled = input("\n\nSignal requires Java, install with sudo apt install openjdk-21-jre \nIs Java correctly installed? (Yes/No): ")
 
 if javaInstalled in ['Oui', 'Yes', 'O', 'Y', 'oui', 'yes', 'o', 'y']:
 
