@@ -40,21 +40,72 @@ def setup_logging():
 
 def check_java():
     if shutil.which('java') is not None:
-        logging.info("Java is already installed.")
+        try:
+            java_version_output = subprocess.check_output(['java', '-version'], stderr=subprocess.STDOUT, text=True)
+            if 'openjdk version "21' in java_version_output or ('OpenJDK Runtime Environment' in java_version_output and '21.' in java_version_output):
+                logging.info("OpenJDK 21 is already installed.")
+                return
+            else:
+                logging.info("A different version of Java is installed. Installing OpenJDK 21...")
+        except subprocess.CalledProcessError:
+            logging.info("Failed to get Java version. Installing OpenJDK 21...")
     else:
-        logging.info("Java is not installed. Installing OpenJDK 11...")
-        subprocess.run(['sudo', 'apt', 'update'], check=True)
-        subprocess.run(['sudo', 'apt', 'install', '-y', 'openjdk-11-jre'], check=True)
-        logging.info("Java installation completed.")
+        logging.info("Java is not installed. Installing OpenJDK 21...")
+
+    # Download OpenJDK 21
+    java_tarball_url = 'https://download.java.net/java/GA/jdk21/latest/binaries/openjdk-21_linux-x64_bin.tar.gz'
+    temp_dir = tempfile.gettempdir()
+    java_tarball_path = os.path.join(temp_dir, 'openjdk-21_linux-x64_bin.tar.gz')
+
+    try:
+        subprocess.run(['wget', java_tarball_url, '-O', java_tarball_path], check=True)
+    except subprocess.CalledProcessError:
+        sys.exit("Failed to download OpenJDK 21. Please check your internet connection.")
+
+    # Extract to /opt
+    subprocess.run(['sudo', 'tar', '-xzf', java_tarball_path, '-C', '/opt'], check=True)
+
+    # Set up alternatives
+    java_home = '/opt/jdk-21'
+    subprocess.run(['sudo', 'update-alternatives', '--install', '/usr/bin/java', 'java', f'{java_home}/bin/java', '1'], check=True)
+    subprocess.run(['sudo', 'update-alternatives', '--set', 'java', f'{java_home}/bin/java'], check=True)
+
+    logging.info("OpenJDK 21 installation completed.")
 
 def check_git():
-    try:
-        subprocess.run(['git', '--version'], check=True, stdout=subprocess.DEVNULL)
+    if shutil.which('git') is not None:
         logging.info("Git is already installed.")
-    except subprocess.CalledProcessError:
+    else:
         logging.info("Git is not installed. Installing Git...")
+        subprocess.run(['sudo', 'apt', 'update'], check=True)
         subprocess.run(['sudo', 'apt', 'install', '-y', 'git'], check=True)
         logging.info("Git installation completed.")
+
+def create_signal_cli_user():
+    logging.info("Creating 'signal-cli' user and group...")
+    try:
+        # Check if the user already exists
+        result = subprocess.run(['id', '-u', 'signal-cli'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if result.returncode != 0:
+            # Create the user and group
+            subprocess.run(['sudo', 'useradd', '-r', '-M', '-d', '/var/lib/signal-cli', '-s', '/usr/sbin/nologin', 'signal-cli'], check=True)
+            logging.info("User 'signal-cli' created.")
+        else:
+            logging.info("User 'signal-cli' already exists.")
+    except subprocess.CalledProcessError:
+        sys.exit("Failed to create 'signal-cli' user.")
+
+def adjust_permissions():
+    logging.info("Adjusting permissions for '/var/lib/signal-cli'...")
+    subprocess.run(['sudo', 'mkdir', '-p', '/var/lib/signal-cli'], check=True)
+    subprocess.run(['sudo', 'chown', '-R', 'signal-cli:signal-cli', '/var/lib/signal-cli'], check=True)
+    subprocess.run(['sudo', 'chmod', '-R', '700', '/var/lib/signal-cli'], check=True)
+
+def add_user_to_signal_cli_group():
+    logging.info("Adding your user to 'signal-cli' group...")
+    user_name = os.getlogin()
+    subprocess.run(['sudo', 'usermod', '-aG', 'signal-cli', user_name], check=True)
+    logging.info(f"User '{user_name}' added to 'signal-cli' group. You may need to log out and log back in for the changes to take effect.")
 
 def get_phone_number():
     while True:
@@ -91,7 +142,7 @@ def get_signal_version():
 
 def download_signal_cli(version):
     url = f"https://github.com/AsamK/signal-cli/releases/download/v{version}/signal-cli-{version}.tar.gz"
-    temp_dir = Path('/tmp')
+    temp_dir = Path(tempfile.gettempdir())
     tarball_path = temp_dir / f"signal-cli-{version}.tar.gz"
     logging.info(f"Downloading Signal CLI version {version}...")
     try:
@@ -121,27 +172,29 @@ def configure_signal_cli(version, number):
         subprocess.run(['git', 'clone', 'https://github.com/AsamK/signal-cli.git', str(temp_path / 'signal-cli')], check=True)
         data_dir = temp_path / 'signal-cli' / 'data'
 
-        # Copy configuration files
-        subprocess.run(['sudo', 'cp', str(data_dir / 'org.asamk.Signal.conf'), '/etc/dbus-1/system.d/'], check=True)
+        # Paths to temporary files
+        temp_service_file = temp_path / 'signal-cli.service'
+        temp_policy_file = temp_path / 'org.asamk.Signal.conf'
+
+        # Copy configuration files to temporary directory
+        subprocess.run(['cp', str(data_dir / 'signal-cli.service'), str(temp_service_file)], check=True)
+        subprocess.run(['cp', str(data_dir / 'org.asamk.Signal.conf'), str(temp_policy_file)], check=True)
         subprocess.run(['sudo', 'cp', str(data_dir / 'org.asamk.Signal.service'), '/usr/share/dbus-1/system-services/'], check=True)
-        subprocess.run(['sudo', 'cp', str(data_dir / 'signal-cli.service'), '/etc/systemd/system/'], check=True)
 
-    # Update the service file
-    service_file = Path('/etc/systemd/system/signal-cli.service')
-    with service_file.open('r') as file:
-        content = file.read()
-    content = content.replace('%dir%', f'/opt/signal-cli-{version}').replace('%number%', number)
-    content = content.replace('User=signal-cli', 'User=root')
-    with service_file.open('w') as file:
-        file.write(content)
+        # Update the service file
+        with temp_service_file.open('r') as file:
+            content = file.read()
+        content = content.replace('%dir%', f'/opt/signal-cli-{version}').replace('%number%', number)
+        # Ensure the service runs as 'signal-cli' user
+        content = content.replace('User=signal-cli', 'User=signal-cli')
+        with temp_service_file.open('w') as file:
+            file.write(content)
 
-    # Update the D-Bus policy file
-    policy_file = Path('/etc/dbus-1/system.d/org.asamk.Signal.conf')
-    with policy_file.open('r') as file:
-        content = file.read()
-    content = content.replace('policy user="signal-cli"', 'policy user="root"')
-    with policy_file.open('w') as file:
-        file.write(content)
+        # The D-Bus policy file remains unchanged
+
+        # Use sudo to copy the modified files to their destinations
+        subprocess.run(['sudo', 'cp', str(temp_service_file), '/etc/systemd/system/signal-cli.service'], check=True)
+        subprocess.run(['sudo', 'cp', str(temp_policy_file), '/etc/dbus-1/system.d/org.asamk.Signal.conf'], check=True)
 
 def create_env_files(number):
     logging.info("Creating .env file with the registered phone number...")
@@ -172,15 +225,15 @@ def register_signal(number):
     logging.info("Registering this device as the master device for your Signal account.")
     can_receive_sms = input("Can this phone number receive SMS? (Yes/No): ").strip().lower()
     if can_receive_sms in ['yes', 'y']:
-        subprocess.run(['signal-cli', '--config', '/var/lib/signal-cli', '-u', number, 'register'], check=True)
+        subprocess.run(['sudo', '-u', 'signal-cli', 'signal-cli', '--config', '/var/lib/signal-cli', '-u', number, 'register'], check=True)
     else:
-        subprocess.run(['signal-cli', '--config', '/var/lib/signal-cli', '-u', number, 'register', '--voice'], check=True)
+        subprocess.run(['sudo', '-u', 'signal-cli', 'signal-cli', '--config', '/var/lib/signal-cli', '-u', number, 'register', '--voice'], check=True)
 
     while True:
         verification_code = input("Enter the 6-digit verification code you received: ").strip()
         if re.match(r'^\d{6}$', verification_code):
             try:
-                subprocess.run(['signal-cli', '--config', '/var/lib/signal-cli', '-u', number, 'verify', verification_code], check=True)
+                subprocess.run(['sudo', '-u', 'signal-cli', 'signal-cli', '--config', '/var/lib/signal-cli', '-u', number, 'verify', verification_code], check=True)
                 logging.info("Verification successful.")
                 break
             except subprocess.CalledProcessError:
@@ -193,9 +246,9 @@ def link_device():
     logging.info("Generating a link QR code...")
 
     try:
-        # Start the signal-cli link command
+        # Start the signal-cli link command as 'signal-cli' user
         process = subprocess.Popen(
-            ['signal-cli', '--config', '/var/lib/signal-cli', 'link', '-n', device_name],
+            ['sudo', '-u', 'signal-cli', 'signal-cli', '--config', '/var/lib/signal-cli', 'link', '-n', device_name],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True
@@ -248,8 +301,15 @@ def finalize_installation():
     subprocess.run(['sudo', 'systemctl', 'daemon-reload'], check=True)
     subprocess.run(['sudo', 'systemctl', 'enable', 'signal-cli.service'], check=True)
     subprocess.run(['sudo', 'systemctl', 'reload', 'dbus.service'], check=True)
-    subprocess.run(['sudo', 'systemctl', 'start', 'signal-cli.service'], check=True)
-    logging.info("Signal CLI service started successfully.")
+    try:
+        subprocess.run(['sudo', 'systemctl', 'start', 'signal-cli.service'], check=True)
+        logging.info("Signal CLI service started successfully.")
+    except subprocess.CalledProcessError:
+        logging.error("Failed to start signal-cli.service.")
+        logging.info("Please check the service status and logs:")
+        logging.info("  sudo systemctl status signal-cli.service")
+        logging.info("  sudo journalctl -xeu signal-cli.service")
+        sys.exit("Exiting due to the above error.")
 
 def send_test_message():
     while True:
@@ -258,6 +318,7 @@ def send_test_message():
             message = "Signal CLI installation is successful. This is a test message."
             try:
                 subprocess.run([
+                    'sudo', '-u', 'signal-cli',
                     'signal-cli', '--config', '/var/lib/signal-cli', '--dbus-system',
                     'send', '-m', message, test_number
                 ], check=True)
@@ -274,6 +335,10 @@ def main():
 
     check_java()
     check_git()
+
+    create_signal_cli_user()
+    adjust_permissions()
+    add_user_to_signal_cli_group()
 
     number = get_phone_number()
     version = get_signal_version()
@@ -292,6 +357,7 @@ def main():
     create_env_files(number)
     send_test_message()
     logging.info("Installation and setup completed successfully.")
+    logging.info("Please log out and log back in for group membership changes to take effect.")
 
 if __name__ == '__main__':
     main()
