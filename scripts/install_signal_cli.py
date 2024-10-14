@@ -17,6 +17,7 @@ import subprocess
 import logging
 import tempfile
 import requests  # For fetching the latest version
+import shutil     # For checking if Java is installed
 from pathlib import Path
 
 # Install required Python libraries in the virtual environment
@@ -38,10 +39,9 @@ def setup_logging():
     logging.basicConfig(level=logging.INFO, format='%(message)s')
 
 def check_java():
-    try:
-        subprocess.run(['java', '-version'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if shutil.which('java') is not None:
         logging.info("Java is already installed.")
-    except subprocess.CalledProcessError:
+    else:
         logging.info("Java is not installed. Installing OpenJDK 11...")
         subprocess.run(['sudo', 'apt', 'update'], check=True)
         subprocess.run(['sudo', 'apt', 'install', '-y', 'openjdk-11-jre'], check=True)
