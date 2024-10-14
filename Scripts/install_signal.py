@@ -5,6 +5,8 @@
 Signal CLI Install Script
 
 This script installs and configures Signal CLI on your system.
+It also creates an .env file and sets up the necessary environment for the Signal Admin Tool.
+
 Run this script without 'sudo'.
 """
 
@@ -40,9 +42,9 @@ def check_java():
         subprocess.run(['java', '-version'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         logging.info("Java is already installed.")
     except subprocess.CalledProcessError:
-        logging.info("Java is not installed. Installing OpenJDK 21...")
+        logging.info("Java is not installed. Installing OpenJDK 11...")
         subprocess.run(['sudo', 'apt', 'update'], check=True)
-        subprocess.run(['sudo', 'apt', 'install', '-y', 'openjdk-21-jre'], check=True)
+        subprocess.run(['sudo', 'apt', 'install', '-y', 'openjdk-11-jre'], check=True)
         logging.info("Java installation completed.")
 
 def check_git():
@@ -140,6 +142,31 @@ def configure_signal_cli(version, number):
     content = content.replace('policy user="signal-cli"', 'policy user="root"')
     with policy_file.open('w') as file:
         file.write(content)
+
+def create_env_files(number):
+    logging.info("Creating .env file with the registered phone number...")
+    env_file = Path('.env')
+    with env_file.open('w') as file:
+        file.write(f"REGISTERED_NUMBER={number}\n")
+    logging.info(".env file created.")
+
+    logging.info("Creating 'env' directory and copying templates...")
+    env_dir = Path('env')
+    env_dir.mkdir(exist_ok=True)
+
+    templates_dir = Path('templates')
+    if not templates_dir.exists():
+        logging.warning("Templates directory does not exist. Skipping template copying.")
+    else:
+        for template_file in ['groups.csv', 'members.csv']:
+            source = templates_dir / template_file
+            destination = env_dir / template_file
+            if source.exists():
+                content = source.read_text()
+                destination.write_text(content)
+                logging.info(f"Copied {template_file} to 'env' directory.")
+            else:
+                logging.warning(f"Template {template_file} does not exist in 'templates' directory.")
 
 def register_signal(number):
     logging.info("Registering this device as the master device for your Signal account.")
@@ -262,6 +289,7 @@ def main():
         link_device()
 
     finalize_installation()
+    create_env_files(number)
     send_test_message()
     logging.info("Installation and setup completed successfully.")
 

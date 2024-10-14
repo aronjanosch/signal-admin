@@ -65,6 +65,7 @@ python scripts/install_signal_cli.py
 - Install Signal CLI and its dependencies.
 - Configure Signal CLI as a system service.
 - Register your device or link it to an existing account.
+- Create the necessary env folder and file
 - Send a test message to verify the installation.
 
 **Notes**
@@ -97,13 +98,10 @@ The script will:
 
 After installing Signal CLI, you can use the Signal Admin Tool to manage your Signal account.
 
-### Create .env file
-Create an .env file with you registered number.
+### Check files 
 
-You can use this command and replace ```[Your Number]```
-```bash
-echo "REGISTERED_NUMBER=[Your Number]" > .env
-```
+1. Check the .env file for your correct phone number.
+2. Update the ```env/groups.csv``` and ```env/members.csv``` for your use case.
 
 Either run ```python3 signal-manager-py``` for an interactive UI or run ```python3 group-sync.py```for automated group creation and updates using the .csv files.
 
