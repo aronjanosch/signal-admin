@@ -16,7 +16,6 @@ import re
 import subprocess
 import logging
 import tempfile
-import requests  # For fetching the latest version
 import shutil     # For checking if Java is installed
 from pathlib import Path
 
@@ -25,13 +24,15 @@ def install_python_packages():
     required_packages = ['qrcode', 'Pillow', 'requests']
     for package in required_packages:
         try:
-            __import__(package.lower())
+            __import__(package)
         except ImportError:
             subprocess.run([sys.executable, '-m', 'pip', 'install', package], check=True)
 
-# Call the function to install required packages
+# Call the function to install required packages before importing them
 install_python_packages()
 
+# Now import the external packages
+import requests  # For fetching the latest version
 import qrcode
 from PIL import Image
 
@@ -52,24 +53,9 @@ def check_java():
     else:
         logging.info("Java is not installed. Installing OpenJDK 21...")
 
-    # Download OpenJDK 21
-    java_tarball_url = 'https://download.java.net/java/GA/jdk21/latest/binaries/openjdk-21_linux-x64_bin.tar.gz'
-    temp_dir = tempfile.gettempdir()
-    java_tarball_path = os.path.join(temp_dir, 'openjdk-21_linux-x64_bin.tar.gz')
-
-    try:
-        subprocess.run(['wget', java_tarball_url, '-O', java_tarball_path], check=True)
-    except subprocess.CalledProcessError:
-        sys.exit("Failed to download OpenJDK 21. Please check your internet connection.")
-
-    # Extract to /opt
-    subprocess.run(['sudo', 'tar', '-xzf', java_tarball_path, '-C', '/opt'], check=True)
-
-    # Set up alternatives
-    java_home = '/opt/jdk-21'
-    subprocess.run(['sudo', 'update-alternatives', '--install', '/usr/bin/java', 'java', f'{java_home}/bin/java', '1'], check=True)
-    subprocess.run(['sudo', 'update-alternatives', '--set', 'java', f'{java_home}/bin/java'], check=True)
-
+    # Install OpenJDK 21 using apt
+    subprocess.run(['sudo', 'apt', 'update'], check=True)
+    subprocess.run(['sudo', 'apt', 'install', '-y', 'openjdk-21-jre'], check=True)
     logging.info("OpenJDK 21 installation completed.")
 
 def check_git():
