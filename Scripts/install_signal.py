@@ -2,7 +2,10 @@
 # coding: utf-8
 
 """
-Run this script with superuser rights ('sudo') to install the Signal CLI client.
+Signal CLI Install Script
+
+This script installs and configures Signal CLI on your system.
+Run this script without 'sudo'.
 """
 
 import os
@@ -10,11 +13,24 @@ import sys
 import re
 import subprocess
 import logging
+import tempfile
+import requests  # For fetching the latest version
 from pathlib import Path
 
-def check_superuser():
-    if os.geteuid() != 0:
-        sys.exit("This script must be run with superuser privileges. Please run with 'sudo'.")
+# Install required Python libraries in the virtual environment
+def install_python_packages():
+    required_packages = ['qrcode', 'Pillow', 'requests']
+    for package in required_packages:
+        try:
+            __import__(package.lower())
+        except ImportError:
+            subprocess.run([sys.executable, '-m', 'pip', 'install', package], check=True)
+
+# Call the function to install required packages
+install_python_packages()
+
+import qrcode
+from PIL import Image
 
 def setup_logging():
     logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -24,9 +40,9 @@ def check_java():
         subprocess.run(['java', '-version'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         logging.info("Java is already installed.")
     except subprocess.CalledProcessError:
-        logging.info("Java is not installed. Installing OpenJDK 11...")
-        subprocess.run(['apt', 'update'], check=True)
-        subprocess.run(['apt', 'install', '-y', 'openjdk-11-jre'], check=True)
+        logging.info("Java is not installed. Installing OpenJDK 21...")
+        subprocess.run(['sudo', 'apt', 'update'], check=True)
+        subprocess.run(['sudo', 'apt', 'install', '-y', 'openjdk-21-jre'], check=True)
         logging.info("Java installation completed.")
 
 def check_git():
@@ -35,7 +51,7 @@ def check_git():
         logging.info("Git is already installed.")
     except subprocess.CalledProcessError:
         logging.info("Git is not installed. Installing Git...")
-        subprocess.run(['apt', 'install', '-y', 'git'], check=True)
+        subprocess.run(['sudo', 'apt', 'install', '-y', 'git'], check=True)
         logging.info("Git installation completed.")
 
 def get_phone_number():
@@ -46,9 +62,26 @@ def get_phone_number():
         else:
             logging.warning("Invalid phone number format. Please try again.")
 
+def get_latest_version():
+    logging.info("Retrieving the latest Signal CLI version from GitHub...")
+    api_url = "https://api.github.com/repos/AsamK/signal-cli/releases/latest"
+    try:
+        response = requests.get(api_url)
+        response.raise_for_status()
+        latest_release = response.json()
+        latest_version = latest_release['tag_name'].lstrip('v')
+        logging.info(f"Latest version available: {latest_version}")
+        return latest_version
+    except requests.RequestException as e:
+        logging.error(f"Failed to retrieve the latest version: {e}")
+        sys.exit("Exiting due to the above error.")
+
 def get_signal_version():
+    latest_version = get_latest_version()
     while True:
-        version = input("Enter the Signal CLI version to install (e.g., 0.12.0): ").strip()
+        version = input(f"Enter the Signal CLI version to install [Default: {latest_version}]: ").strip()
+        if not version:
+            version = latest_version
         if re.match(r'^\d+\.\d+\.\d+$', version):
             return version
         else:
@@ -62,31 +95,34 @@ def download_signal_cli(version):
     try:
         subprocess.run(['wget', url, '-O', str(tarball_path)], check=True)
         logging.info("Download completed.")
+        return tarball_path
     except subprocess.CalledProcessError:
         sys.exit("Failed to download Signal CLI. Please check the version number and your internet connection.")
 
-def install_signal_cli(version):
-    tarball_path = Path(f"/tmp/signal-cli-{version}.tar.gz")
+def install_signal_cli(version, tarball_path):
     install_dir = Path(f"/opt/signal-cli-{version}")
     bin_symlink = Path('/usr/local/bin/signal-cli')
 
     logging.info("Installing Signal CLI...")
-    subprocess.run(['tar', 'xf', str(tarball_path), '-C', '/opt'], check=True)
-    if bin_symlink.exists():
-        bin_symlink.unlink()
-    bin_symlink.symlink_to(install_dir / 'bin' / 'signal-cli')
+    subprocess.run(['sudo', 'tar', 'xf', str(tarball_path), '-C', '/opt'], check=True)
+    if bin_symlink.exists() or bin_symlink.is_symlink():
+        subprocess.run(['sudo', 'rm', str(bin_symlink)], check=True)
+    subprocess.run(['sudo', 'ln', '-sf', str(install_dir / 'bin' / 'signal-cli'), str(bin_symlink)], check=True)
     logging.info("Signal CLI installation completed.")
 
 def configure_signal_cli(version, number):
     logging.info("Configuring Signal CLI as a system service...")
-    temp_dir = Path('/tmp')
-    subprocess.run(['git', 'clone', 'https://github.com/AsamK/signal-cli.git', str(temp_dir / 'signal-cli')], check=True)
-    data_dir = temp_dir / 'signal-cli' / 'data'
 
-    # Copy configuration files
-    subprocess.run(['cp', str(data_dir / 'org.asamk.Signal.conf'), '/etc/dbus-1/system.d/'], check=True)
-    subprocess.run(['cp', str(data_dir / 'org.asamk.Signal.service'), '/usr/share/dbus-1/system-services/'], check=True)
-    subprocess.run(['cp', str(data_dir / 'signal-cli.service'), '/etc/systemd/system/'], check=True)
+    # Use a unique temporary directory
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        subprocess.run(['git', 'clone', 'https://github.com/AsamK/signal-cli.git', str(temp_path / 'signal-cli')], check=True)
+        data_dir = temp_path / 'signal-cli' / 'data'
+
+        # Copy configuration files
+        subprocess.run(['sudo', 'cp', str(data_dir / 'org.asamk.Signal.conf'), '/etc/dbus-1/system.d/'], check=True)
+        subprocess.run(['sudo', 'cp', str(data_dir / 'org.asamk.Signal.service'), '/usr/share/dbus-1/system-services/'], check=True)
+        subprocess.run(['sudo', 'cp', str(data_dir / 'signal-cli.service'), '/etc/systemd/system/'], check=True)
 
     # Update the service file
     service_file = Path('/etc/systemd/system/signal-cli.service')
@@ -128,19 +164,64 @@ def register_signal(number):
 def link_device():
     device_name = input("Enter a name for this device: ").strip()
     logging.info("Generating a link QR code...")
-    result = subprocess.run(['signal-cli', '--config', '/var/lib/signal-cli', 'link', '-n', device_name], check=True, capture_output=True, text=True)
-    link = result.stdout.strip()
-    logging.info(f"Link generated: {link}")
-    logging.info("Please generate a QR code from the link above and scan it using your Signal app.")
+
+    try:
+        # Start the signal-cli link command
+        process = subprocess.Popen(
+            ['signal-cli', '--config', '/var/lib/signal-cli', 'link', '-n', device_name],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+
+        link = None
+
+        # Read output line by line
+        while True:
+            line = process.stdout.readline()
+            if not line:
+                break
+            line = line.strip()
+            logging.debug(f"signal-cli output: {line}")
+
+            # Check if the line contains the link
+            if line.startswith('tsdevice:/') or line.startswith('sgnl:/'):
+                link = line
+                logging.info("Link generated.")
+
+                # Generate the QR code
+                qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_L)
+                qr.add_data(link)
+                qr.make(fit=True)
+                img = qr.make_image(fill_color="black", back_color="white")
+
+                # Display the QR code image
+                img_path = '/tmp/signal_link_qr.png'
+                img.save(img_path)
+                logging.info("Displaying the QR code. Please scan it using your Signal app.")
+                img.show()
+
+        # Wait for the process to complete
+        process.wait()
+
+        # Check the return code
+        if process.returncode == 0:
+            logging.info("Device linked successfully.")
+        else:
+            logging.error("Linking failed. Please try again.")
+
+    except Exception as e:
+        logging.error(f"An error occurred while linking the device: {e}")
+        sys.exit("Exiting due to the above error.")
 
 def finalize_installation():
     logging.info("Finalizing installation...")
-    subprocess.run(['apt', 'install', '-y', 'libunixsocket-java'], check=True)
-    subprocess.run(['cp', '/usr/lib/jni/libunix-java.so', '/lib'], check=True)
-    subprocess.run(['systemctl', 'daemon-reload'], check=True)
-    subprocess.run(['systemctl', 'enable', 'signal-cli.service'], check=True)
-    subprocess.run(['systemctl', 'reload', 'dbus.service'], check=True)
-    subprocess.run(['systemctl', 'start', 'signal-cli.service'], check=True)
+    subprocess.run(['sudo', 'apt', 'install', '-y', 'libunixsocket-java'], check=True)
+    subprocess.run(['sudo', 'cp', '/usr/lib/jni/libunix-java.so', '/lib'], check=True)
+    subprocess.run(['sudo', 'systemctl', 'daemon-reload'], check=True)
+    subprocess.run(['sudo', 'systemctl', 'enable', 'signal-cli.service'], check=True)
+    subprocess.run(['sudo', 'systemctl', 'reload', 'dbus.service'], check=True)
+    subprocess.run(['sudo', 'systemctl', 'start', 'signal-cli.service'], check=True)
     logging.info("Signal CLI service started successfully.")
 
 def send_test_message():
@@ -162,7 +243,6 @@ def send_test_message():
 
 def main():
     setup_logging()
-    check_superuser()
     logging.info("Welcome to the Signal CLI install wizard.")
 
     check_java()
@@ -171,8 +251,8 @@ def main():
     number = get_phone_number()
     version = get_signal_version()
 
-    download_signal_cli(version)
-    install_signal_cli(version)
+    tarball_path = download_signal_cli(version)
+    install_signal_cli(version, tarball_path)
     configure_signal_cli(version, number)
 
     install_mode = input("Will this computer be the master device for your Signal account? (Yes/No): ").strip().lower()
