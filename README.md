@@ -97,6 +97,14 @@ The script will:
 
 After installing Signal CLI, you can use the Signal Admin Tool to manage your Signal account.
 
+### Create .env file
+Create an .env file with you registered number.
+
+You can use this command and replace ```[Your Number]```
+```bash
+echo "REGISTERED_NUMBER=[Your Number]" > .env
+```
+
 Either run ```python3 signal-manager-py``` for an interactive UI or run ```python3 group-sync.py```for automated group creation and updates using the .csv files.
 
 ## License
@@ -110,3 +118,4 @@ This project is licensed under the MIT License. See the LICENSE file for details
 - Contributors and the open-source community for their valuable work.
 
 For any issues or questions, please open an issue on GitHub or contact [*aron.wiederkehr@gmail.com*](aron.wiederkehr@gmail.com)
+
