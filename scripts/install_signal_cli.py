@@ -16,17 +16,33 @@ import re
 import subprocess
 import logging
 import tempfile
-import shutil     # For checking if Java is installed
+import shutil
 from pathlib import Path
+
+# Install system dependencies required for pycairo, PyGObject, pydbus
+def install_system_dependencies():
+    logging.info("Installing system dependencies for pycairo, PyGObject, and pydbus...")
+    try:
+        subprocess.run(['sudo', 'apt', 'update'], check=True)
+        subprocess.run([
+            'sudo', 'apt', 'install', '-y', 'libgirepository1.0-dev', 'gcc', 'libcairo2-dev',
+            'pkg-config', 'python3-dev', 'gir1.2-gtk-4.0'
+        ], check=True)
+        logging.info("System dependencies installed successfully.")
+    except subprocess.CalledProcessError:
+        sys.exit("Failed to install system dependencies. Exiting.")
 
 # Install required Python libraries in the virtual environment
 def install_python_packages():
-    required_packages = ['qrcode', 'Pillow', 'requests']
+    required_packages = ['qrcode', 'Pillow', 'requests', 'pycairo', 'PyGObject', 'pydbus', 'python-dotenv', 'inquirer']
     for package in required_packages:
         try:
             __import__(package)
         except ImportError:
             subprocess.run([sys.executable, '-m', 'pip', 'install', package], check=True)
+
+# Call the function to install system dependencies first
+install_system_dependencies()
 
 # Call the function to install required packages before importing them
 install_python_packages()
@@ -315,6 +331,7 @@ def send_test_message():
         else:
             logging.warning("Invalid phone number format. Please try again.")
 
+# Main function
 def main():
     setup_logging()
     logging.info("Welcome to the Signal CLI install wizard.")
